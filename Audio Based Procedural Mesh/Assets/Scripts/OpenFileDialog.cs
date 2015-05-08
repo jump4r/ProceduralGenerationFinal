@@ -5,7 +5,7 @@ using BMAPI.v1;
 
 public class OpenFileDialog : MonoBehaviour {
 
-    private Beatmap beatmap;
+    private BMAPI.v1.Beatmap m_beatmap;
 
 	// Use this for initialization
 	void Start () {
@@ -23,8 +23,10 @@ public class OpenFileDialog : MonoBehaviour {
         if (path.Length != 0)
         {
             // var www = WWW("file:///" + path);
-            Debug.Log("Beatmap Loaded");
-            beatmap = new Beatmap(path);
+            string newPath = path.Replace('/', '\\');
+            Debug.Log(newPath + " Beatmap Loaded");
+            m_beatmap = new BMAPI.v1.Beatmap(newPath);
+            gameObject.GetComponent<BeatmapMeta>().LoadBeatmap(m_beatmap);
         }
     }
 }

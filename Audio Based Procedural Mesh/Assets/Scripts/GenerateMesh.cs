@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
-
+using System.Collections.Generic;
 
 [RequireComponent(typeof(MeshFilter))]
 [RequireComponent(typeof(MeshCollider))]
@@ -8,285 +8,173 @@ using System.Collections;
  
 public class GenerateMesh : MonoBehaviour
 {
+    public List<Vector3> newVertices;
+    public List<Vector2> newUV;
+    public List<int> newTriangles;
+    public List<Vector3> newNormals;
 
-    // Use this for initialization
+    public List<Vector3> allPoints;
+    private float val = 0f;
+
     void Start()
     {
-
+        //	Generate();
     }
 
-    // Update is called once per frame
-    void Update()
-    {
-
-    }
-
+    public float towerRadius = 20f;
+    public float heightChange = 1f;
+    public int totalTowerHeight = 400;
+    public float valChange = .005f;
     public void Generate()
     {
-        MeshFilter filter = gameObject.GetComponent<MeshFilter>();
-        MeshRenderer renderer = gameObject.GetComponent<MeshRenderer>();
-        MeshCollider collider = gameObject.GetComponent<MeshCollider>();
+        newVertices.Clear();
+        newTriangles.Clear();
+        newNormals.Clear();
+        newUV.Clear();
 
-        Mesh mesh = filter.mesh;
-        mesh.Clear();
+        float differenceMultiplier = 6f;
 
-        float height = 1f;
-        int nbSides = 10;
-
-        // Outter shell is at radius1 + radius2 / 2, inner shell at radius1 - radius2 / 2
-        float bottomRadius1 = .5f;
-        float bottomRadius2 = .15f;
-
-        float topRadius1 = .5f;
-        float topRadius2 = .15f;
-
-        int nbVerticesCap = nbSides * 2 + 2;
-        int nbVerticesSides = nbSides * 2 + 2;
-        #region Vertices
-
-        // bottom + top + sides
-        Vector3[] vertices = new Vector3[nbVerticesCap * 2 + nbVerticesSides * 2];
-        int vert = 0;
-        float _2pi = Mathf.PI * 2f;
-
-        // Bottom cap
-        int sideCounter = 0;
-        
-        while (vert < nbVerticesCap)
+        for (int i = 0; i < totalTowerHeight; i++)
         {
-            sideCounter = sideCounter == nbSides ? 0 : sideCounter;
-
-            float r1 = (float)(sideCounter++) / nbSides * _2pi;
-            float cos = Mathf.Cos(r1);
-            float sin = Mathf.Sin(r1);
-            vertices[vert] = new Vector3(cos * (bottomRadius1 - bottomRadius2 * .5f), 0f, sin * (bottomRadius1 - bottomRadius2 * .5f));
-            vertices[vert + 1] = new Vector3(cos * (bottomRadius1 + bottomRadius2 * .5f), 0f, sin * (bottomRadius1 + bottomRadius2 * .5f));
-            vert += 2;
+            val += valChange;
+            float tempRadius = towerRadius * Mathf.Sin(val / 2f);
+            // allPoints.Add(new Vector3(Mathf.Sin(val) * 10, Mathf.Cos(val) * 10, val * heightChange)); // Spiral Test.
+            allPoints.Add(new Vector3(Random.Range(-1f, 1f) * differenceMultiplier, Random.Range(-1f, 1f) * differenceMultiplier, val * heightChange));
         }
 
-        // Top cap
-        sideCounter = 0;
-        while (vert < nbVerticesCap * 2)
+        CreateLoop(true);
+        CreateLoop(false);
+
+        Mesh mesh = new Mesh();
+        GetComponent<MeshFilter>().mesh = mesh;
+        mesh.vertices = newVertices.ToArray();
+        mesh.uv = newUV.ToArray();
+        mesh.triangles = newTriangles.ToArray();
+        mesh.normals = newNormals.ToArray();
+
+        GetComponent<MeshCollider>().sharedMesh = mesh;
+        //mesh.RecalculateNormals();
+
+    }
+
+    void CreateLoop(bool interior)
+    {
+
+        float newVal = 0f;
+        float tempRadius = towerRadius * Mathf.Sin(newVal / 2f);
+        Vector3 previousPosition = new Vector3(Mathf.Sin(newVal) * tempRadius, newVal * heightChange, Mathf.Cos(newVal) * tempRadius);
+
+        int uvy = 0;
+
+        for (int i = 0; i < allPoints.Count; i++)
         {
-            sideCounter = sideCounter == nbSides ? 0 : sideCounter;
+            newVal += valChange;
 
-            float r1 = (float)(sideCounter++) / nbSides * _2pi;
-            float cos = Mathf.Cos(r1);
-            float sin = Mathf.Sin(r1);
-            vertices[vert] = new Vector3(cos * (topRadius1 - topRadius2 * .5f), height, sin * (topRadius1 - topRadius2 * .5f));
-            vertices[vert + 1] = new Vector3(cos * (topRadius1 + topRadius2 * .5f), height, sin * (topRadius1 + topRadius2 * .5f));
-            vert += 2;
-        }
-        
-        // Sides (out)
-        sideCounter = 0;
-        while (vert < nbVerticesCap * 2 + nbVerticesSides)
-        {
-            sideCounter = sideCounter == nbSides ? 0 : sideCounter;
+            tempRadius = towerRadius * Mathf.Sin(newVal / 2f);
 
-            float r1 = (float)(sideCounter++) / nbSides * _2pi;
-            float cos = Mathf.Cos(r1);
-            float sin = Mathf.Sin(r1);
+            print(tempRadius);
+            // Vector3 position = new Vector3(Mathf.Sin(newVal) * tempRadius, newVal * heightChange, Mathf.Cos(newVal) * tempRadius);
+            Vector3 position = allPoints[i];
+            Vector3 dif = position - previousPosition;
+            dif.Normalize();
 
-            vertices[vert] = new Vector3(cos * (topRadius1 + topRadius2 * .5f), height, sin * (topRadius1 + topRadius2 * .5f));
-            vertices[vert + 1] = new Vector3(cos * (bottomRadius1 + bottomRadius2 * .5f), 0, sin * (bottomRadius1 + bottomRadius2 * .5f));
-            vert += 2;
-        }
+            Vector3 right = Vector3.Cross(Vector3.up, dif).normalized;
+            Vector3 forward = Vector3.Cross(dif, right).normalized;
 
-        // Sides (in)
-        sideCounter = 0;
-        while (vert < vertices.Length)
-        {
-            sideCounter = sideCounter == nbSides ? 0 : sideCounter;
+            if (dif == Vector3.up)
+            {
+                right = Vector3.Cross(dif, Vector3.right).normalized;
+                forward = Vector3.Cross(dif, right).normalized;
+            }
 
-            float r1 = (float)(sideCounter++) / nbSides * _2pi;
-            float cos = Mathf.Cos(r1);
-            float sin = Mathf.Sin(r1);
+            // float realTubeRadius = Mathf.Sin(newVal / .1f) * tubeRadius * .1f + tubeRadius;
+            float realTubeRadius = tubeRadius;
 
-            vertices[vert] = new Vector3(cos * (topRadius1 - topRadius2 * .5f), height, sin * (topRadius1 - topRadius2 * .5f));
-            vertices[vert + 1] = new Vector3(cos * (bottomRadius1 - bottomRadius2 * .5f), 0, sin * (bottomRadius1 - bottomRadius2 * .5f));
-            vert += 2;
-        }
-        #endregion
+            //interior 
+            if (interior)
+            {
+                GeneratePart(previousPosition, position, forward, right, realTubeRadius * .8f, (float)uvy);
+            }
+            else
+            {
+                GeneratePart(previousPosition, position, right, forward, realTubeRadius, (float)uvy);//Flip these to invert faces
+            }
 
-        #region Normales
-
-        // bottom + top + sides
-        Vector3[] normales = new Vector3[vertices.Length];
-        vert = 0;
-        
-        // Bottom cap
-        while (vert < nbVerticesCap)
-        {
-            normales[vert++] = Vector3.down;
-        }
-
-        // Top cap
-        while (vert < nbVerticesCap * 2)
-        {
-            normales[vert++] = Vector3.up;
-        }
-        
-
-        
-        // Sides (out)
-        sideCounter = 0;
-        while (vert < nbVerticesCap * 2 + nbVerticesSides)
-        {
-            sideCounter = sideCounter == nbSides ? 0 : sideCounter;
-
-            float r1 = (float)(sideCounter++) / nbSides * _2pi;
-
-            normales[vert] = new Vector3(Mathf.Cos(r1), 0f, Mathf.Sin(r1));
-            normales[vert + 1] = normales[vert];
-            vert += 2;
+            Debug.DrawLine(previousPosition, position, Color.red, 60f);
+            previousPosition = position;
+            uvy = ~uvy;
         }
 
-        // Sides (in)
-        sideCounter = 0;
-        while (vert < vertices.Length)
-        {
-            sideCounter = sideCounter == nbSides ? 0 : sideCounter;
+        RemoveLastPart();
+    }
 
-            float r1 = (float)(sideCounter++) / nbSides * _2pi;
+    void RemoveLastPart()
+    {
+        newTriangles.RemoveRange(newTriangles.Count - tubeResolution * 6, tubeResolution * 6);
+    }
 
-            normales[vert] = -(new Vector3(Mathf.Cos(r1), 0f, Mathf.Sin(r1)));
-            normales[vert + 1] = normales[vert];
-            vert += 2;
-        }
-         
-        #endregion
+    public float tubeRadius = 1f;
+    public int tubeResolution = 5;
 
-        #region UVs
-        Vector2[] uvs = new Vector2[vertices.Length];
+    void GeneratePart(Vector3 start, Vector3 end, Vector3 forward, Vector3 right, float tubeRadius, float uvy)
+    {
+        int segmentStartIndex = newVertices.Count;
 
-        vert = 0;
-        
-        // Bottom cap
-        sideCounter = 0;
-        while (vert < nbVerticesCap)
-        {
-            float t = (float)(sideCounter++) / nbSides;
-            uvs[vert++] = new Vector2(0f, t);
-            uvs[vert++] = new Vector2(1f, t);
-        }
+        float stepAmount = (Mathf.PI * 2f) / tubeResolution;
+        float val = 180f;
 
-        // Top cap
-        sideCounter = 0;
-        while (vert < nbVerticesCap * 2)
-        {
-            float t = (float)(sideCounter++) / nbSides;
-            uvs[vert++] = new Vector2(0f, t);
-            uvs[vert++] = new Vector2(1f, t);
-        }
-        
-        // Sides (out)
-        sideCounter = 0;
-        while (vert < nbVerticesCap * 2 + nbVerticesSides)
-        {
-            float t = (float)(sideCounter++) / nbSides;
-            uvs[vert++] = new Vector2(t, 0f);
-            uvs[vert++] = new Vector2(t, 1f);
-        }
+        float uv = 0;
+        float uvStep = 1f / tubeResolution;
 
-        // Sides (in)
-        sideCounter = 0;
-        while (vert < vertices.Length)
-        {
-            float t = (float)(sideCounter++) / nbSides;
-            uvs[vert++] = new Vector2(t, 0f);
-            uvs[vert++] = new Vector2(t, 1f);
-        }
-        #endregion
-
-        #region Triangles
-        int nbFace = nbSides * 4;
-        int nbTriangles = nbFace * 2;
-        int nbIndexes = nbTriangles * 3;
-        int[] triangles = new int[nbIndexes];
-
-        // Bottom cap
         int i = 0;
-        
-        sideCounter = 0;
-        while (sideCounter < nbSides)
+        for (i = 0; i < tubeResolution - 1; i++)
         {
-            int current = sideCounter * 2;
-            int next = sideCounter * 2 + 2;
+            Vector3 normal = (forward * Mathf.Sin(val) + right * Mathf.Cos(val));
+            Vector3 newVert = start + normal * tubeRadius;
 
-            triangles[i++] = next + 1;
-            triangles[i++] = next;
-            triangles[i++] = current;
+            newVertices.Add(newVert);
+            newNormals.Add(normal);
 
-            triangles[i++] = current + 1;
-            triangles[i++] = next + 1;
-            triangles[i++] = current;
+            newUV.Add(new Vector2(uv, uvy));
 
-            sideCounter++;
+            newTriangles.Add(segmentStartIndex + i);
+            newTriangles.Add(segmentStartIndex + i + tubeResolution);
+            newTriangles.Add(segmentStartIndex + i + tubeResolution + 1);
+
+            newTriangles.Add(segmentStartIndex + i);
+            newTriangles.Add(segmentStartIndex + i + 1 + tubeResolution);
+            newTriangles.Add(segmentStartIndex + i + 1);
+
+            val += stepAmount;
+            uv += uvStep;
         }
 
-        // Top cap
-        while (sideCounter < nbSides * 2)
-        {
-            int current = sideCounter * 2 + 2;
-            int next = sideCounter * 2 + 4;
+        val += stepAmount;
+        //Last triangle to close the loop
+        Vector3 n1 = (forward * Mathf.Sin(val) + right * Mathf.Cos(val));
+        Vector3 endVert = start + n1 * tubeRadius;
 
-            triangles[i++] = current;
-            triangles[i++] = next;
-            triangles[i++] = next + 1;
+        val += stepAmount;
 
-            triangles[i++] = current;
-            triangles[i++] = next + 1;
-            triangles[i++] = current + 1;
+        Vector3 n2 = (forward * Mathf.Sin(val) + right * Mathf.Cos(val));
+        Vector3 nextVert = start + n2 * tubeRadius;
 
-            sideCounter++;
-        }
-        
+        newVertices.Add(endVert);
+        newVertices.Add(nextVert);
 
-        // Sides (out)
-        while (sideCounter < nbSides * 3)
-        {
-            int current = sideCounter * 2 + 4;
-            int next = sideCounter * 2 + 6;
+        newNormals.Add(n1);
+        newNormals.Add(n2);
 
-            triangles[i++] = current;
-            triangles[i++] = next;
-            triangles[i++] = next + 1;
+        newUV.Add(new Vector2(uv, uvy));
+        newUV.Add(new Vector2(uv + uvStep, uvy));
 
-            triangles[i++] = current;
-            triangles[i++] = next + 1;
-            triangles[i++] = current + 1;
+        newTriangles.Add(segmentStartIndex + i);
+        newTriangles.Add(segmentStartIndex + i + tubeResolution);
+        newTriangles.Add(segmentStartIndex + i + tubeResolution + 1);
 
-            sideCounter++;
-        }
+        newTriangles.Add(segmentStartIndex + i + 1);
+        newTriangles.Add(segmentStartIndex + i + 1 + tubeResolution + 1);
+        newTriangles.Add(segmentStartIndex + i + 1 + 1);
 
-
-        // Sides (in)
-        while (sideCounter < nbSides * 4)
-        {
-            int current = sideCounter * 2 + 6;
-            int next = sideCounter * 2 + 8;
-
-            triangles[i++] = next + 1;
-            triangles[i++] = next;
-            triangles[i++] = current;
-
-            triangles[i++] = current + 1;
-            triangles[i++] = next + 1;
-            triangles[i++] = current;
-
-            sideCounter++;
-        }
-        #endregion
-
-        mesh.vertices = vertices;
-        mesh.normals = normales;
-        mesh.uv = uvs;
-        mesh.triangles = triangles;
-
-        mesh.RecalculateBounds();
-        mesh.Optimize();
-
-        collider.sharedMesh = mesh;
     }
 }
