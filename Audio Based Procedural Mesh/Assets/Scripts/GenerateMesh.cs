@@ -10,6 +10,47 @@ public static class NoteDuration
     public static readonly float Quarter = 1f; // Default
     public static readonly float Eighth = 0.5f;
     public static readonly float Sixteenth = 0.25f;
+
+    public static float GetDurationSpan(float startTime, float endTime, float mpb)
+    {
+        float spanTime = (endTime - startTime);
+        float rtn = 0;
+        while (spanTime > mpb * Sixteenth)
+        {
+            if ((mpb * Whole) < spanTime)
+            {
+                spanTime -= mpb * Whole;
+                rtn += Whole;
+            }
+
+            else if ((mpb * Half) < spanTime)
+            {
+                spanTime -= mpb * Half;
+                rtn += Half;
+            }
+
+            else if ((mpb * Quarter) < spanTime)
+            {
+                spanTime -= mpb * Quarter;
+                rtn += Quarter;
+            }
+
+            else if ((mpb * Eighth) < spanTime)
+            {
+                spanTime -= mpb * Eighth;
+                rtn += Eighth;
+            }
+
+            else
+            {
+                spanTime -= mpb * Sixteenth;
+                rtn += Sixteenth;
+            }
+        }
+        rtn = (rtn == 0) ? Sixteenth : rtn;
+        Debug.Log("This duration is: " + rtn + " beats.");
+        return rtn;
+    }
 }
 
 [RequireComponent(typeof(MeshFilter))]
@@ -39,7 +80,8 @@ public class GenerateMesh : MonoBehaviour
     private float val = 0f;
 
     private float previousTime = 0f;
-    private float currentTime;
+    private float currentTime = 0f;
+    private float endTime;
     
     public int totalTubeLength = 400;
     private float depthChange = 140f; // Depth change based off of bpm. This i guess could literally be BPM
@@ -47,7 +89,7 @@ public class GenerateMesh : MonoBehaviour
     // Constants
     private const float VAL_CHANGE = .1f;
     private const int tubeSegmentSize = 15; // Resolution of Tube.
-    private float TUBE_RADIUS = 15f;
+    private float TUBE_RADIUS = 30f;
     private const float PI = Mathf.PI;
 
     void Start()
@@ -65,13 +107,14 @@ public class GenerateMesh : MonoBehaviour
         validLeftAngles[2] = 345f;
         validLeftAngles[3] = 350f;
         validLeftAngles[4] = 355f;
-
         // ugh zero case?
     }
 
     public void Generate()
     {
-        float differenceMultiplier = 4f;
+        float differenceMultiplier = 15f;
+        float depthDivisor = 5f;
+        float currentDistance = 0f;
 
         if (RequireBeatmap && beatmapMeta.BPM == 0) {
             Debug.Log("Hey bruh! Select a beatmap!");
@@ -84,16 +127,58 @@ public class GenerateMesh : MonoBehaviour
             totalTubeLength = beatmapMeta.hitObjects.Count;
         }
 
+        endTime = beatmapMeta.hitObjects[beatmapMeta.hitObjects.Count - 1].Time;
+
         for (int i = 0; i < totalTubeLength; i++)
         {
             val += VAL_CHANGE;
             //allPoints.Add(new Vector3(Mathf.Sin(val) * 30, Mathf.Cos(val) * 30, val * depthChange)); // Spiral Test.
-            allPoints.Add(new Vector3(Random.Range(-1f, 1f) * differenceMultiplier, Random.Range(-1f, 1f) * differenceMultiplier, val * depthChange));
             currentTime = beatmapMeta.hitObjects[i].Time;
+            // currentDistance += (currentTime - previousTime) / depthDivisor;
+            currentDistance += beatmapMeta.BPM * 0.5f * NoteDuration.GetDurationSpan(previousTime, currentTime, beatmapMeta.MPB);
+            Debug.Log("Distance Delta: " + beatmapMeta.BPM * 2f * NoteDuration.GetDurationSpan(previousTime, currentTime, beatmapMeta.MPB));
+            allPoints.Add(new Vector3(Random.Range(-1f, 1f) * differenceMultiplier, Random.Range(-1f, 1f) * differenceMultiplier, currentDistance /*+ ((currentTime - previousTime) / depthDivisor)*/));
             // Calculate point based off of timing;
-            Debug.Log("Time Difference for index: " + i + " is " + (currentTime - previousTime));
+
             previousTime = currentTime;
         }
+
+        /*
+        // Based off of beatmap, load the anchor points of the mesh.
+        int currentIndex = 0;
+        int LeftRightAngleIndex = 0;
+        int UpDownAngleIndex = 0;
+        int maxIndexes = 0;
+        while (currentTime < endTime || maxIndexes > 500)
+        {
+            val += VAL_CHANGE * NoteDuration.Quarter;
+
+            // We haven't hit the start of the tunnel yet, keep going in the '0' direction.
+            if (currentTime < beatmapMeta.hitObjects[0].Time)
+            {
+                allPoints.Add(new Vector3(0, 0, val * depthChange));
+                previousTime = currentTime;
+                continue;
+            }
+
+            // New hit circle detected, change tunnel direction.
+            else if (currentTime > beatmapMeta.hitObjects[currentIndex].Time)
+            {
+                currentIndex++;
+                LeftRightAngleIndex = Random.Range(-1 * (int)differenceMultiplier, 1 * (int)differenceMultiplier);
+                UpDownAngleIndex = Random.Range(-1 * (int)differenceMultiplier, 1 * (int)differenceMultiplier);
+                previousTime = currentTime;
+            }
+
+            // No new HitObject detected, keep going in the same direction.
+            else
+            {
+                allPoints.Add(new Vector3(LeftRightAngleIndex, UpDownAngleIndex, val * depthChange));
+            }
+
+            maxIndexes++;
+            currentTime += Mathf.RoundToInt(beatmapMeta.MPB * NoteDuration.Quarter);
+        }*/
 
         CreateAllSegments(true);
         CreateAllSegments(false);
@@ -121,7 +206,8 @@ public class GenerateMesh : MonoBehaviour
             // Get position of next vert.
             Vector3 position = allPoints[i];
             Vector3 dif = (position - previousPosition).normalized;
-            Vector3 right = (dif != Vector3.up) ? Vector3.Cross(Vector3.up, dif).normalized : Vector3.Cross(dif, Vector3.right).normalized;
+           
+            Vector3 right = Vector3.Cross(Vector3.up, dif).normalized;
             Vector3 forward = Vector3.Cross(dif, right).normalized;
 
             // Determine tube facing. 
