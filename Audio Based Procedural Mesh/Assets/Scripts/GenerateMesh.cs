@@ -71,6 +71,7 @@ public class GenerateMesh : MonoBehaviour
     public List<Vector2> UVs; // UV Array
     public List<int> Triangles; // Triangle List
     public List<Vector3> Normals;
+    public List<Color32> Colors;
 
     public List<Vector3> allPoints;
 
@@ -85,6 +86,12 @@ public class GenerateMesh : MonoBehaviour
     
     public int totalTubeLength = 400;
     private float depthChange = 140f; // Depth change based off of bpm. This i guess could literally be BPM
+
+    // Colors
+    private bool isRed = true;
+    Color32 d_red = new Color(0.47f, 0.352f, 0.352f, 1.0f);
+    Color32 d_blue = new Color(0.608f, 0.682f, 0.796f, 1.0f);
+    Color32 d_gray = new Color(0.3f, 0.3f, 0.3f, 1.0f);
 
     // Constants
     private const float VAL_CHANGE = .1f;
@@ -189,7 +196,18 @@ public class GenerateMesh : MonoBehaviour
         mesh.uv = UVs.ToArray();
         mesh.triangles = Triangles.ToArray();
         mesh.normals = Normals.ToArray();
+        mesh.colors32 = Colors.ToArray();
 
+        Renderer rend = GetComponent<Renderer>();
+        rend.material.shader = Shader.Find("Vertex Colored");
+        /*
+        for (int i = 0; i < mesh.colors32.Length; i++)
+        {
+            Debug.Log("Mesh Colors!: " + mesh.colors32);
+        }*/
+
+        mesh.UploadMeshData(true);
+        mesh.Optimize();
         GetComponent<MeshCollider>().sharedMesh = mesh;
         //mesh.RecalculateNormals();
 
@@ -243,7 +261,7 @@ public class GenerateMesh : MonoBehaviour
         float val = 180f;
 
         float uv = 0;
-        float uvStep = 1f / tubeSegmentSize;
+        float uvStep = 1f / tubeSegmentSize; 
 
         int i = 0;
         for (i = 0; i < tubeSegmentSize - 1; i++)
@@ -253,6 +271,8 @@ public class GenerateMesh : MonoBehaviour
 
             Vertices.Add(newVert);
             Normals.Add(normal);
+            Color32 Color2Add = (isRed) ? d_red : d_gray;
+            Colors.Add(Color2Add);
 
             UVs.Add(new Vector2(uv, uvy));
 
@@ -263,6 +283,14 @@ public class GenerateMesh : MonoBehaviour
             Triangles.Add(segmentStartIndex + i);
             Triangles.Add(segmentStartIndex + i + 1 + tubeSegmentSize);
             Triangles.Add(segmentStartIndex + i + 1);
+
+            /*
+            for (int j = 0; j < 6; j++)
+            {
+                Color32 Color2Add = (isRed) ? d_red : d_gray;
+                Colors.Add(Color2Add);
+            }
+             * */
 
             val += stepAmount;
             uv += uvStep;
@@ -276,9 +304,12 @@ public class GenerateMesh : MonoBehaviour
 
         val += stepAmount;
 
-        Vector3 tri2 = (forward * Mathf.Sin(val) + right * Mathf.Cos(val));
+        Vector3 tri2 = (forward * Mathf.Sin(val) + right * Mathf.Cos(val)); 
         Vector3 nextVert = vertexPosition + tri2 * TUBE_RADIUS;
 
+        Color32 Color2Add2 = (isRed) ? d_red : d_gray;
+        Colors.Add(Color2Add2);
+        Colors.Add(Color2Add2);
         Vertices.Add(endVert);
         Vertices.Add(nextVert);
 
@@ -295,6 +326,16 @@ public class GenerateMesh : MonoBehaviour
         Triangles.Add(segmentStartIndex + i + 1);
         Triangles.Add(segmentStartIndex + i + tubeSegmentSize + 2);
         Triangles.Add(segmentStartIndex + i + 2);
+        
+        /*
+        for (int j = 0; j < 6; j++)
+        {
+            Color32 Color2Add = (isRed) ? d_red : d_gray;
+            Colors.Add(Color2Add);
+        }
+         */
+
+        isRed = !isRed;
     }
 
     // TODO if I can figure it out
